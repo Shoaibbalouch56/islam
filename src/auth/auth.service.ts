@@ -4,15 +4,21 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
-import { RegisterDto } from './dto/register.dto';
-import * as bcrypt from 'bcrypt';
-import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from 'prisma/prisma.service';
-import * as admin from 'firebase-admin';
-import { GoogleLoginDto } from './dto/google-login.dto';
-import { MailerService } from '../mailer/mailer.service';
+
 import { AuthProvider, Role, User } from '@prisma/client';
+
+import * as bcrypt from 'bcrypt';
+
+import { PrismaService } from 'prisma/prisma.service';
+
+import * as admin from 'firebase-admin';
+
+import { MailerService } from '../mailer/mailer.service';
+
+import { GoogleLoginDto } from './dto/google-login.dto';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
@@ -111,51 +117,6 @@ export class AuthService {
     await this.mailerService.sendOtp(dto.email, otp);
 
     return { message: 'OTP sent to your email' };
-  }
-
-  async registerFreeUser(dto: {
-    fullName: string;
-    email: string;
-    password: string;
-    phone?: string;
-    countryCode?: string;
-  }) {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
-    if (existingUser) {
-      throw new ConflictException('User with this email already exists');
-    }
-
-    if (dto.phone) {
-      const existingPhone = await this.prisma.user.findUnique({
-        where: { phone: dto.phone },
-      });
-      if (existingPhone) {
-        throw new ConflictException('User with this phone already exists');
-      }
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(dto.password, salt);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        password: hashedPassword,
-        fullName: dto.fullName,
-        phone: dto.phone,
-        countryCode: dto.countryCode,
-        role: Role.USER,
-        provider: AuthProvider.EMAIL,
-        isEmailVerified: true,
-      },
-    });
-
-    return {
-      access_token: this.signToken(user),
-      user: this.formatUserResponse(user),
-    };
   }
 
   async verifyOtp(email: string, otp: string) {
