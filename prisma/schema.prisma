@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  STUDENT
+  TEACHER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+}
+
+model User {
+  id    Int    @id @default(autoincrement())
+  email String @unique
+  phone       String? @unique
+  countryCode String?
+  password String
+
+  fullName String
+  avatar   String?
+  role     Role    @default(USER)
+  gender   Gender?
+  age      Int?
+
+  provider        AuthProvider @default(EMAIL)
+  googleId        String?      @unique
+  isEmailVerified Boolean      @default(false)
+  isActive        Boolean      @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+model PendingUser {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  fullName  String
+  phone       String?
+  countryCode String?
+  role      Role     @default(USER)
+  gender    Gender?
+  age       Int?
+  otpHash   String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model PasswordReset {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  otpHash   String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+}
