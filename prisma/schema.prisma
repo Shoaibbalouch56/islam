@@ -39,6 +39,29 @@ enum AlarmSound {
   SILENT
 }
 
+enum PlanCategory {
+  JOINT
+  SEPARATE
+}
+
+enum PlanTier {
+  BASIC
+  STANDARD
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  PENDING
+  TRIAL
+  ACTIVE
+  CANCELLED
+}
+
+enum RecitationMode {
+  WITH_TAJWEED
+  WITHOUT_TAJWEED
+}
+
 model User {
   id    Int    @id @default(autoincrement())
   email String @unique
@@ -69,6 +92,11 @@ model User {
   bookmarks       Bookmark[]
   readingProgress ReadingProgress?
   hadithBookmarks HadithBookmark[]
+  studentProfile  StudentProfile?
+  subscriptions   Subscription[]
+  courseProgress  StudentCourseProgress[]
+  recitationPref  RecitationPreference?
+  recitationAttempts RecitationAttempt[]
 
   @@index([role])
 }
@@ -123,6 +151,127 @@ model HadithBookmark {
   @@index([userId])
 }
 
+model Region {
+  id        Int     @id @default(autoincrement())
+  code      String  @unique
+  name      String
+  flag      String?
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+}
+
+model Language {
+  id         Int     @id @default(autoincrement())
+  code       String  @unique
+  name       String
+  nativeName String
+  isDefault  Boolean @default(false)
+  isActive   Boolean @default(true)
+  sortOrder  Int     @default(0)
+}
+
+model Course {
+  id           Int     @id @default(autoincrement())
+  slug         String  @unique
+  title        String
+  description  String
+  duration     String?
+  icon         String?
+  thumbnail    String?
+  level        String?
+  rating       Float?
+  studentCount Int     @default(0)
+  isFeatured   Boolean @default(false)
+  isActive     Boolean @default(true)
+  sortOrder    Int     @default(0)
+
+  progress StudentCourseProgress[]
+}
+
+model TimeSlot {
+  id        Int     @id @default(autoincrement())
+  slug      String  @unique
+  label     String
+  startTime String
+  endTime   String
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+}
+
+model Plan {
+  id             Int          @id @default(autoincrement())
+  category       PlanCategory
+  tier           PlanTier
+  name           String
+  price          Float
+  billingPeriod  String       @default("month")
+  classesPerWeek Int?
+  features       String[]
+  isPopular      Boolean      @default(false)
+  isActive       Boolean      @default(true)
+  sortOrder      Int          @default(0)
+
+  subscriptions Subscription[]
+
+  @@unique([category, tier])
+}
+
+model Addon {
+  id          Int     @id @default(autoincrement())
+  slug        String  @unique
+  name        String
+  description String?
+  price       Float
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+}
+
+model Coupon {
+  id            Int       @id @default(autoincrement())
+  code          String    @unique
+  discountType  String    @default("PERCENT")
+  discountValue Float
+  isActive      Boolean   @default(true)
+  expiresAt     DateTime?
+}
+
+model StudentProfile {
+  id                 Int      @id @default(autoincrement())
+  userId             Int      @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  regionCode         String?
+  language           String?
+  timezone           String?
+  courseSlugs        String[]
+  timeslotSlugs      String[]
+  smartScheduling    Boolean  @default(true)
+  onboardingComplete Boolean  @default(false)
+  unreadMessages     Int      @default(0)
+  unreadNotifications Int     @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Subscription {
+  id            Int                @id @default(autoincrement())
+  userId        Int
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId        Int
+  plan          Plan               @relation(fields: [planId], references: [id])
+  addonSlugs    String[]
+  paymentMethod String?
+  couponCode    String?
+  status        SubscriptionStatus @default(PENDING)
+  amount        Float
+  discount      Float              @default(0)
+  trialEndsAt   DateTime?
+  startedAt     DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([userId])
+}
+
 model PendingUser {
   id        Int      @id @default(autoincrement())
   email     String   @unique
@@ -146,4 +295,46 @@ model PasswordReset {
   expiresAt DateTime
   attempts  Int      @default(0)
   createdAt DateTime @default(now())
+}
+
+model StudentCourseProgress {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseSlug      String
+  course          Course   @relation(fields: [courseSlug], references: [slug])
+  progressPercent Int      @default(0)
+  lastAccessedAt  DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, courseSlug])
+  @@index([userId])
+}
+
+model RecitationPreference {
+  id                 Int            @id @default(autoincrement())
+  userId             Int            @unique
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode               RecitationMode @default(WITH_TAJWEED)
+  tajweedColorsOn    Boolean        @default(true)
+  highlightMistakes  Boolean        @default(false)
+  currentSurah       Int            @default(1)
+  currentAyah        Int            @default(1)
+  selectedReciter    String         @default("ar.alafasy")
+  updatedAt          DateTime       @updatedAt
+}
+
+model RecitationAttempt {
+  id            Int            @id @default(autoincrement())
+  userId        Int
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  surahNumber   Int
+  ayahNumber    Int
+  mode          RecitationMode
+  accuracyScore Int?
+  feedback      Json?
+  reciterId     String?
+  createdAt     DateTime       @default(now())
+
+  @@index([userId])
 }

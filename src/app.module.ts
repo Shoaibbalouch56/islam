@@ -15,6 +15,7 @@ import { MailerModule } from './mailer/mailer.module';
 import { PrayerModule } from './prayer/prayer.module';
 import { QiblaModule } from './qibla/qibla.module';
 import { QuranModule } from './quran/quran.module';
+import { StudentModule } from './student/student.module';
 import { UsersModule } from './users/users.module';
 
 @Global()
@@ -38,6 +39,7 @@ import { UsersModule } from './users/users.module';
     HomeModule,
     QiblaModule,
     HadithModule,
+    StudentModule,
   ],
   controllers: [AppController],
   providers: [
