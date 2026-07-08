@@ -113,6 +113,51 @@ export class AuthService {
     return { message: 'OTP sent to your email' };
   }
 
+  async registerFreeUser(dto: {
+    fullName: string;
+    email: string;
+    password: string;
+    phone?: string;
+    countryCode?: string;
+  }) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    if (existingUser) {
+      throw new ConflictException('User with this email already exists');
+    }
+
+    if (dto.phone) {
+      const existingPhone = await this.prisma.user.findUnique({
+        where: { phone: dto.phone },
+      });
+      if (existingPhone) {
+        throw new ConflictException('User with this phone already exists');
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(dto.password, salt);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        password: hashedPassword,
+        fullName: dto.fullName,
+        phone: dto.phone,
+        countryCode: dto.countryCode,
+        role: Role.USER,
+        provider: AuthProvider.EMAIL,
+        isEmailVerified: true,
+      },
+    });
+
+    return {
+      access_token: this.signToken(user),
+      user: this.formatUserResponse(user),
+    };
+  }
+
   async verifyOtp(email: string, otp: string) {
     const pending = await this.prisma.pendingUser.findUnique({
       where: { email },

@@ -23,6 +23,22 @@ enum AuthProvider {
   GOOGLE
 }
 
+enum Prayer {
+  FAJR
+  SUNRISE
+  DHUHR
+  ASR
+  MAGHRIB
+  ISHA
+}
+
+enum AlarmSound {
+  ADHAN
+  BEEP
+  CHIME
+  SILENT
+}
+
 model User {
   id    Int    @id @default(autoincrement())
   email String @unique
@@ -41,10 +57,70 @@ model User {
   isEmailVerified Boolean      @default(false)
   isActive        Boolean      @default(true)
 
+  city      String?
+  latitude  Float?
+  longitude Float?
+  language  String  @default("en")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  reminders       PrayerReminder[]
+  bookmarks       Bookmark[]
+  readingProgress ReadingProgress?
+  hadithBookmarks HadithBookmark[]
+
   @@index([role])
+}
+
+model PrayerReminder {
+  id            Int        @id @default(autoincrement())
+  userId        Int
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prayer        Prayer
+  enabled       Boolean    @default(true)
+  offsetMinutes Int        @default(0)
+  alarmSound    AlarmSound @default(ADHAN)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([userId, prayer])
+  @@index([userId])
+}
+
+model Bookmark {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  surahNumber Int
+  ayahNumber  Int
+  surahName   String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, surahNumber, ayahNumber])
+  @@index([userId])
+}
+
+model ReadingProgress {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  surahNumber Int
+  ayahNumber  Int      @default(1)
+  updatedAt   DateTime @updatedAt
+}
+
+model HadithBookmark {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hadithId     String
+  collectionId String?
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, hadithId])
+  @@index([userId])
 }
 
 model PendingUser {

@@ -36,7 +36,9 @@ async function bootstrap() {
   const appName = process.env.APP_NAME ?? 'Door-to-Door Islam';
   const config = new DocumentBuilder()
     .setTitle(`${appName} API`)
-    .setDescription('Authentication API for Door-to-Door Islam')
+    .setDescription(
+      'API for Door-to-Door Islam (Auth, Quran, Prayer times & reminders, Home)',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .build();
