@@ -78,6 +78,16 @@ export class StudentRecitationController {
     return this.recitationService.analyzeRecitation(user.id, dto);
   }
 
+  @Get('practice')
+  getPracticeScreen(@GetUser() user: User) {
+    return this.recitationService.getPracticeScreen(user.id);
+  }
+
+  @Get('feedback')
+  getFeedbackScreen(@GetUser() user: User) {
+    return this.recitationService.getFeedbackScreen(user.id);
+  }
+
   @Get('history')
   getHistory(@GetUser() user: User) {
     return this.recitationService.getHistory(user.id);

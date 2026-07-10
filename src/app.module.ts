@@ -16,6 +16,8 @@ import { PrayerModule } from './prayer/prayer.module';
 import { QiblaModule } from './qibla/qibla.module';
 import { QuranModule } from './quran/quran.module';
 import { StudentModule } from './student/student.module';
+import { TeacherModule } from './teacher/teacher.module';
+import { PortalContentModule } from './portal-content/portal-content.module';
 import { UsersModule } from './users/users.module';
 
 @Global()
@@ -39,7 +41,9 @@ import { UsersModule } from './users/users.module';
     HomeModule,
     QiblaModule,
     HadithModule,
+    PortalContentModule,
     StudentModule,
+    TeacherModule,
   ],
   controllers: [AppController],
   providers: [

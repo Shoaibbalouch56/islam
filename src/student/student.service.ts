@@ -11,13 +11,14 @@ import { PersonalDetailsDto } from './dto/personal-details.dto';
 import { SelectCoursesDto } from './dto/select-courses.dto';
 import { SelectTimeslotsDto } from './dto/select-timeslots.dto';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
-import { PAYMENT_METHODS, TRIAL_DAYS } from './student.constants';
+import { PortalContentService } from '../portal-content/portal-content.service';
 
 @Injectable()
 export class StudentService {
   constructor(
     private prisma: PrismaService,
     private dashboardService: StudentDashboardService,
+    private portalContent: PortalContentService,
   ) {}
 
   // ---------- Reference data (dynamic from DB) ----------
@@ -47,6 +48,14 @@ export class StudentService {
         title: true,
         description: true,
         duration: true,
+        icon: true,
+        thumbnail: true,
+        level: true,
+        rating: true,
+        studentCount: true,
+        isFeatured: true,
+        isDashboardCategory: true,
+        defaultProgressPercent: true,
       },
     });
   }
@@ -75,9 +84,10 @@ export class StudentService {
       const startingFrom = catPlans.length
         ? Math.min(...catPlans.map((p) => p.price))
         : null;
+      const isPopular = catPlans.some((p) => p.isPopular);
       return {
         category: cat,
-        isPopular: cat === PlanCategory.JOINT,
+        isPopular,
         startingFrom,
         plans: catPlans,
       };
@@ -95,7 +105,11 @@ export class StudentService {
   }
 
   getPaymentMethods() {
-    return PAYMENT_METHODS;
+    return this.prisma.paymentMethod.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      select: { slug: true, name: true, description: true },
+    });
   }
 
   // ---------- Student onboarding ----------
@@ -333,15 +347,30 @@ export class StudentService {
 
   async createSubscription(userId: number, dto: CreateSubscriptionDto) {
     await this.ensureProfile(userId);
+
+    if (dto.paymentMethod) {
+      const method = await this.prisma.paymentMethod.findUnique({
+        where: { slug: dto.paymentMethod },
+      });
+      if (!method || !method.isActive) {
+        throw new BadRequestException('Invalid payment method');
+      }
+    }
+
     const pricing = await this.computePricing(
       dto.planId,
       dto.addonSlugs,
       dto.couponCode,
     );
 
+    const trialDays = parseInt(
+      await this.portalContent.getSetting('student.trial_days', '7'),
+      10,
+    );
+
     const now = new Date();
     const trialEndsAt = dto.startTrial
-      ? new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+      ? new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000)
       : null;
 
     const subscription = await this.prisma.subscription.create({

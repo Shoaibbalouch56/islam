@@ -5,7 +5,6 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { PAYMENT_METHOD_IDS } from '../student.constants';
 
 export class CreateSubscriptionDto {
   @IsInt()
@@ -18,7 +17,7 @@ export class CreateSubscriptionDto {
 
   @IsOptional()
   @IsString()
-  paymentMethod?: (typeof PAYMENT_METHOD_IDS)[number];
+  paymentMethod?: string;
 
   @IsOptional()
   @IsString()

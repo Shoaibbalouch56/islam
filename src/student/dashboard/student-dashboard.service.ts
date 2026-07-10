@@ -1,24 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import type { User } from '@prisma/client';
 import { PrismaService } from 'prisma/prisma.service';
-import { getDailyContent } from '../../home/daily.data';
+import { PortalContentService } from '../../portal-content/portal-content.service';
+import { DashboardListQueryDto } from '../dto/dashboard-list-query.dto';
 import { DashboardSearchDto } from '../dto/dashboard-search.dto';
-
-const CATEGORY_SLUGS = ['nazra-quran', 'hifz-program', 'tajweed-rules'];
 
 @Injectable()
 export class StudentDashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private portalContent: PortalContentService,
+  ) {}
 
   async getDashboard(user: User, query: DashboardSearchDto) {
     const profile = await this.prisma.studentProfile.findUnique({
       where: { userId: user.id },
     });
 
-    const dailyQuote = getDailyContent();
+    const [dailyQuote, settings] = await Promise.all([
+      this.portalContent.getDailyQuote(),
+      this.portalContent.getSettings([
+        'student.dashboard.tagline',
+        'student.dashboard.search_placeholder',
+      ]),
+    ]);
 
     const categories = await this.prisma.course.findMany({
-      where: { slug: { in: CATEGORY_SLUGS }, isActive: true },
+      where: { isDashboardCategory: true, isActive: true },
       orderBy: { sortOrder: 'asc' },
       select: {
         slug: true,
@@ -73,21 +81,25 @@ export class StudentDashboardService {
     const firstName = user.fullName?.split(' ')[0] ?? 'Student';
 
     return {
+      screen: 'student_dashboard',
       welcome: {
         greeting: `Welcome, ${firstName}!`,
-        tagline: 'Journey of knowledge and faith',
+        tagline: settings(
+          'student.dashboard.tagline',
+          'Journey of knowledge and faith',
+        ),
         avatar: user.avatar,
       },
       notifications: {
         unreadMessages: profile?.unreadMessages ?? 0,
         unreadAlerts: profile?.unreadNotifications ?? 0,
       },
-      dailyQuote: {
-        text: dailyQuote.text,
-        source: dailyQuote.source,
-      },
+      dailyQuote,
       search: {
-        placeholder: 'Search courses, surahs, topics…',
+        placeholder: settings(
+          'student.dashboard.search_placeholder',
+          'Search courses, surahs, topics…',
+        ),
         query: query.q ?? null,
       },
       categories: categories.map((c) => ({
@@ -96,15 +108,138 @@ export class StudentDashboardService {
         icon: c.icon,
         thumbnail: c.thumbnail,
       })),
-      continueLearning: continueLearning.map((p) => ({
+      continueLearning: {
+        title: 'Continue Learning',
+        seeAll: true,
+        items: continueLearning.map((p) => ({
+          slug: p.course.slug,
+          title: p.course.title,
+          thumbnail: p.course.thumbnail,
+          description: p.course.description,
+          progressPercent: p.progressPercent,
+          lastAccessedAt: p.lastAccessedAt,
+          actionLabel: 'Continue',
+        })),
+      },
+      featuredCourses: {
+        title: 'Featured Course',
+        seeAll: true,
+        items: featuredCourses.map((c) => ({
+          slug: c.slug,
+          title: c.title,
+          description: c.description,
+          thumbnail: c.thumbnail,
+          level: c.level,
+          rating: c.rating,
+          studentCount: c.studentCount,
+          studentCountLabel: this.formatStudentCount(c.studentCount),
+        })),
+      },
+    };
+  }
+
+  async getContinueLearning(userId: number, query: DashboardListQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      userId,
+      ...(query.q
+        ? {
+            course: {
+              OR: [
+                { title: { contains: query.q, mode: 'insensitive' as const } },
+                {
+                  description: {
+                    contains: query.q,
+                    mode: 'insensitive' as const,
+                  },
+                },
+              ],
+            },
+          }
+        : {}),
+    };
+
+    const [total, items] = await Promise.all([
+      this.prisma.studentCourseProgress.count({ where }),
+      this.prisma.studentCourseProgress.findMany({
+        where,
+        orderBy: { lastAccessedAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          course: {
+            select: {
+              slug: true,
+              title: true,
+              thumbnail: true,
+              description: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      screen: 'continue_learning',
+      total,
+      page,
+      limit,
+      items: items.map((p) => ({
         slug: p.course.slug,
         title: p.course.title,
         thumbnail: p.course.thumbnail,
         description: p.course.description,
         progressPercent: p.progressPercent,
         lastAccessedAt: p.lastAccessedAt,
+        actionLabel: 'Continue',
       })),
-      featuredCourses: featuredCourses.map((c) => ({
+    };
+  }
+
+  async getFeaturedCourses(query: DashboardListQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const where = query.q
+      ? {
+          isFeatured: true,
+          isActive: true,
+          OR: [
+            { title: { contains: query.q, mode: 'insensitive' as const } },
+            { description: { contains: query.q, mode: 'insensitive' as const } },
+          ],
+        }
+      : { isFeatured: true, isActive: true };
+
+    const [total, courses] = await Promise.all([
+      this.prisma.course.count({ where }),
+      this.prisma.course.findMany({
+        where,
+        orderBy: { sortOrder: 'asc' },
+        skip,
+        take: limit,
+        select: {
+          slug: true,
+          title: true,
+          description: true,
+          thumbnail: true,
+          level: true,
+          rating: true,
+          studentCount: true,
+        },
+      }),
+    ]);
+
+    return {
+      screen: 'featured_courses',
+      total,
+      page,
+      limit,
+      items: courses.map((c) => ({
         slug: c.slug,
         title: c.title,
         description: c.description,
@@ -131,19 +266,12 @@ export class StudentDashboardService {
       });
       if (!course) continue;
 
-      const defaultProgress =
-        slug === 'basic-islamic-studies'
-          ? 44
-          : slug === 'nazra-quran'
-            ? 65
-            : 0;
-
       await this.prisma.studentCourseProgress.upsert({
         where: { userId_courseSlug: { userId, courseSlug: slug } },
         create: {
           userId,
           courseSlug: slug,
-          progressPercent: defaultProgress,
+          progressPercent: course.defaultProgressPercent,
         },
         update: {},
       });

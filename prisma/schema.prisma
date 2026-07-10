@@ -62,6 +62,28 @@ enum RecitationMode {
   WITHOUT_TAJWEED
 }
 
+enum ClassStatus {
+  PENDING
+  ACCEPTED
+  UPCOMING
+  LIVE
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum ClassType {
+  SEPARATE
+  JOINT
+  GROUP
+}
+
+enum FeedbackDemoStatus {
+  CORRECT
+  NEEDS_WORK
+  MISTAKE
+}
+
 model User {
   id    Int    @id @default(autoincrement())
   email String @unique
@@ -97,6 +119,11 @@ model User {
   courseProgress  StudentCourseProgress[]
   recitationPref  RecitationPreference?
   recitationAttempts RecitationAttempt[]
+  teacherProfile  TeacherProfile?
+  teacherClasses  TeacherClass[]       @relation("TeacherClasses")
+  classEnrollments TeacherClassEnrollment[]
+  teacherReviews  TeacherReview[]      @relation("TeacherReviews")
+  reviewsWritten  TeacherReview[]      @relation("StudentReviews")
 
   @@index([role])
 }
@@ -171,19 +198,21 @@ model Language {
 }
 
 model Course {
-  id           Int     @id @default(autoincrement())
-  slug         String  @unique
-  title        String
-  description  String
-  duration     String?
-  icon         String?
-  thumbnail    String?
-  level        String?
-  rating       Float?
-  studentCount Int     @default(0)
-  isFeatured   Boolean @default(false)
-  isActive     Boolean @default(true)
-  sortOrder    Int     @default(0)
+  id                     Int     @id @default(autoincrement())
+  slug                   String  @unique
+  title                  String
+  description            String
+  duration               String?
+  icon                   String?
+  thumbnail              String?
+  level                  String?
+  rating                 Float?
+  studentCount           Int     @default(0)
+  isFeatured             Boolean @default(false)
+  isDashboardCategory    Boolean @default(false)
+  defaultProgressPercent Int     @default(0)
+  isActive               Boolean @default(true)
+  sortOrder              Int     @default(0)
 
   progress StudentCourseProgress[]
 }
@@ -334,7 +363,137 @@ model RecitationAttempt {
   accuracyScore Int?
   feedback      Json?
   reciterId     String?
+  recordingUrl  String?
   createdAt     DateTime       @default(now())
 
   @@index([userId])
+}
+
+model TeacherProfile {
+  id                  Int      @id @default(autoincrement())
+  userId              Int      @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating              Float    @default(0)
+  ratingCount         Int      @default(0)
+  timeslotSlugs       String[]
+  timezone            String?
+  unreadMessages      Int      @default(0)
+  unreadNotifications Int      @default(0)
+  onboardingComplete  Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model TeacherClass {
+  id            Int         @id @default(autoincrement())
+  teacherId     Int
+  teacher       User        @relation("TeacherClasses", fields: [teacherId], references: [id], onDelete: Cascade)
+  courseSlug    String?
+  title         String
+  description   String?
+  classType     ClassType
+  status        ClassStatus @default(PENDING)
+  scheduledDate DateTime
+  startTime     String
+  endTime       String
+  thumbnail     String?
+  isGroupClass  Boolean     @default(false)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  enrollments TeacherClassEnrollment[]
+
+  @@index([teacherId])
+  @@index([status])
+  @@index([scheduledDate])
+}
+
+model TeacherClassEnrollment {
+  id        Int          @id @default(autoincrement())
+  classId   Int
+  class     TeacherClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId Int
+  student   User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+  @@index([studentId])
+}
+
+model TeacherReview {
+  id        Int      @id @default(autoincrement())
+  teacherId Int
+  teacher   User     @relation("TeacherReviews", fields: [teacherId], references: [id], onDelete: Cascade)
+  studentId Int
+  student   User     @relation("StudentReviews", fields: [studentId], references: [id], onDelete: Cascade)
+  rating    Float
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([teacherId])
+}
+
+model DailyQuote {
+  id        Int      @id @default(autoincrement())
+  text      String
+  source    String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+}
+
+model PaymentMethod {
+  id          Int     @id @default(autoincrement())
+  slug        String  @unique
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+}
+
+model AppSetting {
+  key   String @id
+  value String
+}
+
+model TajweedRule {
+  code      String  @id
+  label     String
+  color     String
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  segments TajweedWordSegment[]
+}
+
+model TajweedWordSegment {
+  id          Int                 @id @default(autoincrement())
+  surahNumber Int
+  ayahNumber  Int
+  wordOrder   Int
+  text        String
+  ruleCode    String?
+  rule        TajweedRule?        @relation(fields: [ruleCode], references: [code])
+  demoStatus  FeedbackDemoStatus?
+
+  @@unique([surahNumber, ayahNumber, wordOrder])
+  @@index([surahNumber, ayahNumber])
+}
+
+model RecitationModeInfo {
+  mode        RecitationMode @id
+  label       String
+  description String
+  sortOrder   Int            @default(0)
+}
+
+model Reciter {
+  id         Int     @id @default(autoincrement())
+  editionId  String  @unique
+  name       String
+  arabicName String?
+  style      String?
+  avatar     String?
+  isActive   Boolean @default(true)
+  sortOrder  Int     @default(0)
 }
